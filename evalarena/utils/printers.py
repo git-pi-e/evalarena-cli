@@ -8,7 +8,7 @@ from rich.console import Console
 from rich.table import Table
 from rich.text import Text
 
-from .model_schemas import FullModel
+from ..data.model_schemas import FullModel
 from .utils import format_number, format_price, format_tokens, truncate_string
 
 console = Console()

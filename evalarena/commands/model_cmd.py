@@ -6,11 +6,11 @@ from typing import Optional
 import typer
 from rich.console import Console
 
-from .config import get_config
-from .data_access import fetch_model_by_id, search_models_by_name, ModelType
-from .http import EvalArenaHTTPError
-from .printers import print_model_details, print_output, print_error, print_info
-from .completions import complete_model_type, complete_output_format
+from ..core.config import get_config
+from ..core.data_access import fetch_model_by_id, search_models_by_name, ModelType
+from ..core.http import EvalArenaHTTPError
+from ..utils.printers import print_model_details, print_output, print_error, print_info
+from ..utils.completions import complete_model_type, complete_output_format
 
 console = Console()
 

@@ -5,7 +5,7 @@ from typing import List
 
 import typer
 
-from .data_access import ModelType
+from ..core.data_access import ModelType
 from .printers import BENCHMARK_COLUMNS
 
 
@@ -103,7 +103,7 @@ def complete_chat_models(ctx, incomplete: str) -> List[str]:
     def _ids() -> List[str]:
         try:
             import asyncio
-            from .chat_cmd import get_available_chat_models
+            from ..commands.chat_cmd import get_available_chat_models
 
             return [m.get("id", "") for m in asyncio.run(get_available_chat_models())]
         except Exception:

@@ -6,13 +6,13 @@ from typing import List, Optional
 import typer
 from rich.console import Console
 
-from .config import get_config
-from .data_access import ModelType
-from .http import EvalArenaHTTPError
-from .model_schemas import FullModel
-from .printers import print_comparison_table, print_output, print_error, print_info
-from .utils import resolve_model_names
-from .completions import complete_model_type, complete_output_format, complete_diff_mode
+from ..core.config import get_config
+from ..core.data_access import ModelType
+from ..core.http import EvalArenaHTTPError
+from ..data.model_schemas import FullModel
+from ..utils.printers import print_comparison_table, print_output, print_error, print_info
+from ..utils.utils import resolve_model_names
+from ..utils.completions import complete_model_type, complete_output_format, complete_diff_mode
 
 console = Console()
 

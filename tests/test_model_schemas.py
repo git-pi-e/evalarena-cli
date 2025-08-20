@@ -2,7 +2,7 @@
 
 import pytest
 
-from evalarena.model_schemas import FullModel, ModelDescription, BenchmarkResults
+from evalarena.data.model_schemas import FullModel, ModelDescription, BenchmarkResults
 
 
 def test_full_model_basic():

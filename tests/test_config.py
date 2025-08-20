@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from evalarena.config import EvalArenaSettings, ChartConfig, update_config, load_config
+from evalarena.core.config import EvalArenaSettings, ChartConfig, update_config, load_config
 
 
 def test_default_config():

@@ -8,12 +8,12 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from .config import get_config
-from .data_access import fetch_models, ModelType
-from .http import EvalArenaHTTPError
-from .printers import print_error, print_info, format_number
-from .utils import resolve_model_names, normalize_values, compute_pareto_frontier, clean_model_name
-from .completions import complete_model_type, complete_normalize_mode, complete_common_benchmarks
+from ..core.config import get_config
+from ..core.data_access import fetch_models, ModelType
+from ..core.http import EvalArenaHTTPError
+from ..utils.printers import print_error, print_info, format_number
+from ..utils.utils import resolve_model_names, normalize_values, compute_pareto_frontier, clean_model_name
+from ..utils.completions import complete_model_type, complete_normalize_mode, complete_common_benchmarks
 
 console = Console()
 

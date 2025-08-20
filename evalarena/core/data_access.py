@@ -3,7 +3,7 @@
 from typing import Dict, List, Optional
 
 from .http import cached_get
-from .model_schemas import FullModel, ChatModel
+from ..data.model_schemas import FullModel, ChatModel
 
 
 class ModelType:

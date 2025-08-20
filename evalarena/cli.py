@@ -8,10 +8,10 @@ from rich.console import Console
 from rich.traceback import install
 
 from . import __version__
-from .auth import login, logout
-from .config import get_config, update_config, reload_config
-from .http import health_check, clear_cache, get_cache_stats
-from .printers import print_error, print_success, print_info
+from .core.auth import login, logout
+from .core.config import get_config, update_config, reload_config
+from .core.http import health_check, clear_cache, get_cache_stats
+from .utils.printers import print_error, print_success, print_info
 
 # Install rich traceback handler
 install(show_locals=True)
@@ -214,11 +214,11 @@ def clear_cache_cmd() -> None:
 
 # Import command modules
 try:
-    from .models_cmd import setup_models_commands
-    from .model_cmd import setup_model_commands
-    from .compare_cmd import compare_models
-    from .charts_cmd import setup_charts_commands
-    from .chat_cmd import chat_command
+    from .commands.models_cmd import setup_models_commands
+    from .commands.model_cmd import setup_model_commands
+    from .commands.compare_cmd import compare_models
+    from .commands.charts_cmd import setup_charts_commands
+    from .commands.chat_cmd import chat_command
     
     # Setup command handlers
     setup_models_commands(models_app)

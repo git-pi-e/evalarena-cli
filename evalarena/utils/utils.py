@@ -4,8 +4,8 @@ import math
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
-from .data_access import search_models_by_name, ModelType
-from .model_schemas import FullModel
+from ..core.data_access import search_models_by_name, ModelType
+from ..data.model_schemas import FullModel
 
 
 def is_numeric(value: Any) -> bool:

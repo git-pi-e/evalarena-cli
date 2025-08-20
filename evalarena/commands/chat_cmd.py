@@ -16,11 +16,11 @@ from rich.text import Text
 from rich.table import Table
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
-from .config import get_config, update_config, reload_config
-from .http import create_client, EvalArenaHTTPError
-from .printers import print_error, print_info, print_success
-from .completions import complete_model_type, complete_output_format, complete_chat_models
-from .data_access import fetch_models
+from ..core.config import get_config, update_config, reload_config
+from ..core.http import create_client, EvalArenaHTTPError
+from ..utils.printers import print_error, print_info, print_success
+from ..utils.completions import complete_model_type, complete_output_format, complete_chat_models
+from ..core.data_access import fetch_models
 
 console = Console()
 

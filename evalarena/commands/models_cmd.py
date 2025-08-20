@@ -6,12 +6,12 @@ from typing import List, Optional
 import typer
 from rich.console import Console
 
-from .config import get_config
-from .data_access import fetch_models, get_all_benchmark_keys, ModelType
-from .http import EvalArenaHTTPError
-from .printers import print_output, print_error, print_info, DEFAULT_COLUMNS, BENCHMARK_COLUMNS
-from .utils import validate_benchmark_key
-from .completions import (
+from ..core.config import get_config
+from ..core.data_access import fetch_models, get_all_benchmark_keys, ModelType
+from ..core.http import EvalArenaHTTPError
+from ..utils.printers import print_output, print_error, print_info, DEFAULT_COLUMNS, BENCHMARK_COLUMNS
+from ..utils.utils import validate_benchmark_key
+from ..utils.completions import (
     complete_model_type, complete_sort_order, complete_output_format,
     complete_evals_category_smart
 )
@@ -301,7 +301,7 @@ def setup_models_commands(app: typer.Typer) -> None:
     ) -> None:
         """Search for models by name."""
         
-        from .data_access import search_models_by_name
+        from ..core.data_access import search_models_by_name
         
         _validate_model_type(model_type)
         
