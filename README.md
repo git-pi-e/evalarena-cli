@@ -7,6 +7,7 @@ A powerful command-line interface for comparing and analyzing AI model benchmark
 - 📊 **List and filter models** across different categories (all, small, VLM, chat)
 - 🔍 **Search models** by name with fuzzy matching
 - 📈 **Compare models** side-by-side with diff calculations
+- 💬 **Multi-model chat** - Send prompts to multiple models simultaneously
 - 📉 **Generate terminal charts** (bar charts and Pareto frontiers)
 - 🎨 **Rich terminal UI** with colored output and tables
 - ⚡ **Fast HTTP caching** with ETags and conditional requests
@@ -49,10 +50,11 @@ evalarena --show-completion
 
 **Restart your terminal** after installation, then enjoy tab completion:
 
-- `evalarena <TAB>` → All commands (models, model, compare, charts, etc.)
+- `evalarena <TAB>` → All commands (models, model, compare, chat, charts, etc.)
 - `evalarena models list --type <TAB>` → Model types (all, small, vlm, chat)
 - `evalarena models list --evals <TAB>` → Categories (math, coding, knowledge, multimodal, etc.)
 - `evalarena compare model1 model2 --diff <TAB>` → Diff modes (none, absolute, percent)
+- `evalarena chat --list` → Show available chat models for easy copy-paste
 - `evalarena charts bar --normalize <TAB>` → Normalization modes (none, zscore, minmax)
 
 **Smart completions available for:**
@@ -83,6 +85,9 @@ evalarena model show "gpt-4o"
 
 # Compare two models
 evalarena compare "gpt-4o" "claude-3.5-sonnet"
+
+# Chat with multiple models
+evalarena chat "Explain quantum computing" --models "gpt-4o,claude-3.5-sonnet"
 
 # Generate bar chart
 evalarena charts bar --models "gpt-4o,claude-3.5-sonnet" --columns mmlu,humaneval
@@ -174,6 +179,42 @@ evalarena compare "phi-4" "llama-3.3-70b" --columns mmlu,humaneval,math
 evalarena compare "model1" "model2" "model3" --format json
 ```
 
+### Multi-Model Chat
+
+```bash
+# Chat with multiple models simultaneously
+evalarena chat --prompt <prompt> [OPTIONS]
+
+Options:
+  --prompt, -p TEXT               Prompt to send to chat models
+  --models, -m TEXT               Comma-separated model IDs to compare (overrides defaults)
+  --set-models TEXT               Persist default chat models (comma-separated)
+  --clear-models                  Clear default chat models
+  --list                          List available chat models
+  --no-progress                   Disable live progress display
+
+# Manage default chat models
+evalarena chat --set-models "gpt-4o,claude-3.5-sonnet"
+evalarena chat --clear-models
+
+# Use saved defaults with a one-liner prompt
+evalarena chat --prompt "Explain quantum computing"
+
+# Override defaults for a one-off run
+evalarena chat --prompt "Write a binary search in Python" --models "gpt-4o,gemini-1.5-pro"
+
+# List available models for chat
+evalarena chat --list
+```
+
+**Features:**
+- ✨ **Real-time streaming** from multiple models simultaneously
+- 🎨 **Side-by-side display** with live progress indicators  
+- 📱 **Clean terminal UI** with model names and creator info
+- ⚡ **Async execution** for maximum performance
+- 🚫 **Interrupt support** with Ctrl+C
+- 📋 **Final summary** with complete responses
+
 ### Charts
 
 #### Bar Charts
@@ -248,6 +289,10 @@ cache_ttl_seconds = 3600
 width = 100
 height = 30
 normalize = "none"
+
+# Chat settings
+[chat]
+default_models = []
 ```
 
 ### Environment Variables
@@ -352,6 +397,22 @@ evalarena charts bar --top 3 --columns "mmlu,humaneval,math" --normalize zscore
 # Compare specific models
 evalarena charts bar --models "gpt-4o,claude-3.5-sonnet,gemini-2.0-flash" \
   --columns "mmlu,mmlu_pro,humaneval,math"
+```
+
+### Interactive multi-model chat
+
+```bash
+# Compare reasoning across different models
+evalarena chat "Explain the difference between supervised and unsupervised learning" \
+  --models "gpt-4o,claude-3.5-sonnet,gemini-1.5-pro"
+
+# Test coding capabilities
+evalarena chat "Write a Python function to implement binary search" \
+  --models "gpt-4o,claude-3.5-sonnet"
+
+# Compare problem-solving approaches
+evalarena chat "How would you approach optimizing a slow database query?" \
+  --models "gpt-4o,claude-3.5-haiku,llama-3.1-70b"
 ```
 
 ## Cache Management

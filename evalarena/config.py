@@ -18,6 +18,12 @@ class ChartConfig(BaseModel):
     normalize: str = Field(default="none", pattern=r"^(none|zscore|minmax)$")
 
 
+class ChatConfig(BaseModel):
+    """Chat configuration settings."""
+    
+    default_models: List[str] = Field(default_factory=list, description="Default chat model IDs to use")
+
+
 class EvalArenaSettings(BaseSettings):
     """EvalArena CLI configuration settings."""
     
@@ -66,6 +72,9 @@ class EvalArenaSettings(BaseSettings):
     
     # Chart settings
     chart: ChartConfig = Field(default_factory=ChartConfig)
+    
+    # Chat settings
+    chat: ChatConfig = Field(default_factory=ChatConfig)
     
     # Cache settings
     cache_enabled: bool = Field(default=True, description="Enable HTTP caching")
@@ -149,6 +158,24 @@ def update_config(key: str, value: str) -> None:
                 settings.chart = chart_config
             else:
                 raise ValueError(f"Unknown chart config key: {parts[1]}")
+        elif parts[0] == "chat":
+            chat_config = settings.chat.model_copy()
+            if hasattr(chat_config, parts[1]):
+                field_info = chat_config.model_fields[parts[1]]
+                if field_info.annotation == List[str]:
+                    if value.strip() == "":
+                        parsed_value = []
+                    else:
+                        parsed_value = [s.strip() for s in value.split(",") if s.strip()]
+                    setattr(chat_config, parts[1], parsed_value)
+                elif field_info.annotation == bool:
+                    parsed_bool = value.lower() in ("true", "1", "yes", "on")
+                    setattr(chat_config, parts[1], parsed_bool)
+                else:
+                    setattr(chat_config, parts[1], value)
+                settings.chat = chat_config
+            else:
+                raise ValueError(f"Unknown chat config key: {parts[1]}")
         else:
             raise ValueError(f"Unknown nested config key: {key}")
     else:
@@ -186,3 +213,4 @@ def reload_config() -> EvalArenaSettings:
     global _config
     _config = load_config()
     return _config
+

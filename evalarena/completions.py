@@ -3,6 +3,8 @@
 import os
 from typing import List
 
+import typer
+
 from .data_access import ModelType
 from .printers import BENCHMARK_COLUMNS
 
@@ -79,10 +81,59 @@ def complete_config_keys() -> List[str]:
     """Complete configuration keys."""
     return [
         "base_url", "output_format", "timeout_s", "default_columns",
-        "chart.width", "chart.height", "chart.normalize", "cache.enabled"
+        "chart.width", "chart.height", "chart.normalize", "cache.enabled",
+        "chat.default_models"
     ]
 
 
 def complete_boolean_values() -> List[str]:
     """Complete boolean values."""
     return ["true", "false", "yes", "no", "on", "off"]
+
+
+def complete_chat_models(ctx, incomplete: str) -> List[str]:
+    """CSV-aware completion for model IDs.
+
+    After the last comma, suggests model IDs that start with the current partial
+    text. Click only replaces that partial token, so we return just the model
+    IDs – no prefix – which avoids duplicated prefixes in the menu.
+    """
+
+    # Fetch available IDs (with fallback)
+    def _ids() -> List[str]:
+        try:
+            import asyncio
+            from .chat_cmd import get_available_chat_models
+
+            return [m.get("id", "") for m in asyncio.run(get_available_chat_models())]
+        except Exception:
+            return [
+                "gpt-4o",
+                "gpt-4o-mini",
+                "claude-3-5-sonnet",
+                "claude-3-5-haiku",
+                "gemini-1.5-pro",
+                "gemini-1.5-flash",
+                "llama-3.1-405b",
+                "llama-3.1-70b",
+            ]
+
+    full_token = incomplete or ""
+    prefix = ""
+    needle = full_token
+
+    if "," in full_token:
+        prefix, needle = full_token.rsplit(",", 1)
+        prefix += ","
+        needle = needle.lstrip()
+
+    needle_low = needle.lower()
+
+    suggestions: List[str] = []
+    for mid in _ids():
+        if mid.lower().startswith(needle_low):
+            suggestions.append(prefix + mid)
+            if len(suggestions) >= 10:
+                break
+
+    return suggestions

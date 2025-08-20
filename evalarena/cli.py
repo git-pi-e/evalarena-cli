@@ -149,6 +149,10 @@ def config_show() -> None:
     console.print(f"Width: [cyan]{config.chart.width}[/cyan]")
     console.print(f"Height: [cyan]{config.chart.height}[/cyan]")
     console.print(f"Normalize: [cyan]{config.chart.normalize}[/cyan]")
+    console.print()
+    console.print("[bold blue]Chat Settings[/bold blue]")
+    default_chat_models = config.chat.default_models or []
+    console.print(f"Default Models: [cyan]{', '.join(default_chat_models) if default_chat_models else '(none)'}[/cyan]")
     
     # Show cache stats
     try:
@@ -214,11 +218,13 @@ try:
     from .model_cmd import setup_model_commands
     from .compare_cmd import compare_models
     from .charts_cmd import setup_charts_commands
+    from .chat_cmd import chat_command
     
     # Setup command handlers
     setup_models_commands(models_app)
     setup_model_commands(model_app)
     app.command(name="compare")(compare_models)
+    app.command(name="chat")(chat_command)
     setup_charts_commands(charts_app)
     
 except ImportError as e:

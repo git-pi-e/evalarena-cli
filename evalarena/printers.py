@@ -368,7 +368,7 @@ def print_comparison_table(
     columns: Optional[List[str]] = None,
     diff_mode: str = "none"
 ) -> None:
-    """Print model comparison table with optional diff calculations."""
+    """Print model comparison table with optional diff calculations and highlighted maximum values."""
     if len(models) < 2:
         console.print("[red]Need at least 2 models for comparison.")
         return
@@ -401,14 +401,26 @@ def print_comparison_table(
         if all(v is None for v in values):
             continue
         
+        # Find the maximum value for highlighting
+        numeric_values = [v for v in values if v is not None and isinstance(v, (int, float))]
+        max_value = max(numeric_values) if numeric_values else None
+        
         row = [get_column_label(column)]
         
-        # Add values
+        # Add values with highlighting for the maximum
         for value in values:
             if value is not None:
-                row.append(format_number(value))
+                formatted_value = format_number(value)
+                # Highlight if this is the maximum value
+                if (max_value is not None and 
+                    isinstance(value, (int, float)) and 
+                    value == max_value):
+                    cell = Text(formatted_value, style="bold green")
+                else:
+                    cell = Text(formatted_value, style="white")
+                row.append(cell)
             else:
-                row.append("—")
+                row.append(Text("—", style="dim"))
         
         # Add diff if requested
         if diff_mode != "none" and len(models) == 2:
@@ -416,19 +428,35 @@ def print_comparison_table(
             if val1 is not None and val2 is not None:
                 if diff_mode == "absolute":
                     diff = val2 - val1
-                    row.append(f"{diff:+.2f}")
+                    diff_text = f"{diff:+.2f}"
+                    # Color the diff based on positive/negative
+                    if diff > 0:
+                        row.append(Text(diff_text, style="green"))
+                    elif diff < 0:
+                        row.append(Text(diff_text, style="red"))
+                    else:
+                        row.append(Text(diff_text, style="yellow"))
                 elif diff_mode == "percent":
                     if val1 != 0:
                         diff_pct = ((val2 - val1) / val1) * 100
-                        row.append(f"{diff_pct:+.1f}%")
+                        diff_text = f"{diff_pct:+.1f}%"
+                        # Color the diff based on positive/negative
+                        if diff_pct > 0:
+                            row.append(Text(diff_text, style="green"))
+                        elif diff_pct < 0:
+                            row.append(Text(diff_text, style="red"))
+                        else:
+                            row.append(Text(diff_text, style="yellow"))
                     else:
-                        row.append("∞")
+                        row.append(Text("∞", style="yellow"))
             else:
-                row.append("—")
+                row.append(Text("—", style="dim"))
         
         table.add_row(*row)
     
     console.print(table)
+    console.print(f"\n[dim]Comparing {len(models)} models across {len([c for c in columns if not all(model.get_benchmark_value(c) is None for model in models)])} metrics[/dim]")
+    console.print("[dim]• [bold green]Highest values[/bold green] are highlighted in each row[/dim]")
 
 
 def print_json(data: Any) -> None:
