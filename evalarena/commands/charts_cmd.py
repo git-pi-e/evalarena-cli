@@ -107,7 +107,7 @@ def generate_horizontal_bar_chart(models, values, metric, normalize):
     BAR_PATTERN = '▬'
     
     # Calculate display parameters
-    max_name_length = min(25, max(len(clean_model_name(m.name)) for m in models))
+    max_name_length = min(40, max(len(clean_model_name(m.name)) for m in models))  # Increased from 25 to 40
     max_bar_length = 50  # Maximum bar length in characters
     max_value = max(values) if values else 1
     
@@ -450,9 +450,6 @@ def generate_bar_chart(
         
         # Show creator legend
         print_creator_legend(sorted_models)
-        
-        # Show data table
-        print_bar_chart_table(sorted_models, [metric], [sorted_values], normalize)
     
     else:
         # Multiple metrics - show separate charts for each
@@ -564,8 +561,6 @@ def generate_bar_chart(
                     values = [next(norm_iter) if v is not None else None for v in values]
             
             all_values.append(values)
-        
-        print_bar_chart_table(sorted_models_for_table, columns, all_values, normalize)
 
 
 def generate_pareto_chart(
@@ -713,7 +708,7 @@ def print_pareto_table(
         status = "🏆 Frontier" if i in frontier_set else "Dominated"
         
         table.add_row(
-            clean_model_name(model.name, 20),
+            clean_model_name(model.name, 35),
             format_number(cost, 3),
             format_number(quality, 2),
             format_number(efficiency, 3),

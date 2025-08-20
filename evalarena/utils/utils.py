@@ -286,7 +286,7 @@ def validate_benchmark_key(key: str, available_keys: List[str]) -> str:
             raise ValueError(f"Unknown benchmark key '{key}'. Use 'evalarena models list --columns' to see available keys.")
 
 
-def clean_model_name(name: str, max_length: int = 20) -> str:
+def clean_model_name(name: str, max_length: int = 35) -> str:
     """Clean and truncate model name for display."""
     # Keep the full model name for better identification
     # Only do minimal cleaning to preserve important identifiers like gpt, llama, etc.
