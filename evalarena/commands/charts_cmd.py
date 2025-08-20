@@ -199,16 +199,15 @@ def setup_charts_commands(app: typer.Typer) -> None:
     
     @app.command("bar")
     def bar_chart(
+        metric: str = typer.Argument(
+            "mmlu",
+            help="Benchmark metric to chart (e.g., mmlu, humaneval)",
+            autocompletion=complete_common_benchmarks
+        ),
         models: Optional[str] = typer.Option(
             None,
             "--models",
             help="Comma-separated list of model names to include"
-        ),
-        columns: str = typer.Option(
-            "mmlu",
-            "--columns",
-            help="Comma-separated list of benchmarks to chart",
-            autocompletion=complete_common_benchmarks
         ),
         model_type: str = typer.Option(
             "all",
@@ -238,7 +237,7 @@ def setup_charts_commands(app: typer.Typer) -> None:
             help="Chart height in characters"
         ),
     ) -> None:
-        """Generate bar chart comparing models across benchmarks."""
+        """Generate bar chart comparing models on a single benchmark metric."""
         
         # Validate inputs
         valid_types = [ModelType.ALL, ModelType.SMALL, ModelType.VLM, ModelType.CHAT]
@@ -255,9 +254,6 @@ def setup_charts_commands(app: typer.Typer) -> None:
         chart_width = width or config.chart.width
         chart_height = height or config.chart.height
         
-        # Parse columns
-        column_list = [col.strip() for col in columns.split(",")]
-        
         try:
             # Get models to chart
             if models:
@@ -271,12 +267,11 @@ def setup_charts_commands(app: typer.Typer) -> None:
                     model_list = asyncio.run(fetch_models(model_type))
                 
                 # Filter to top N if specified
-                if top and column_list:
-                    primary_metric = column_list[0]
-                    # Sort by primary metric (descending)
+                if top:
+                    # Sort by the specified metric (descending)
                     model_list = sorted(
                         model_list,
-                        key=lambda m: m.get_benchmark_value(primary_metric) or 0,
+                        key=lambda m: m.get_benchmark_value(metric) or 0,
                         reverse=True
                     )[:top]
             
@@ -287,7 +282,7 @@ def setup_charts_commands(app: typer.Typer) -> None:
             # Generate chart
             generate_bar_chart(
                 model_list,
-                column_list,
+                [metric],  # Pass as single-item list for compatibility
                 normalize,
                 chart_width,
                 chart_height
@@ -398,169 +393,43 @@ def generate_bar_chart(
     width: int,
     height: int
 ) -> None:
-    """Generate and display bar chart."""
+    """Generate and display bar chart for a single metric."""
     
-    # Prepare data
-    model_names = [clean_model_name(m.name) for m in models]
+    # Since we now only support single metrics, extract the metric
+    metric = columns[0]
     
-    if len(columns) == 1:
-        # Single metric bar chart
-        metric = columns[0]
-        
-        # Create list of (model, value) pairs and filter out None/0 values
-        model_value_pairs = []
-        for model in models:
-            value = model.get_benchmark_value(metric)
-            if value is not None and value > 0:
-                model_value_pairs.append((model, value))
-        
-        # Sort by value in descending order
-        model_value_pairs.sort(key=lambda x: x[1], reverse=True)
-        
-        if not model_value_pairs:
-            print_error(f"No models found with valid data for metric '{metric}'")
-            return
-        
-        # Extract sorted models and values
-        sorted_models = [pair[0] for pair in model_value_pairs]
-        sorted_values = [pair[1] for pair in model_value_pairs]
-        sorted_model_names = [clean_model_name(m.name) for m in sorted_models]
-        
-        # Normalize if requested
-        if normalize != "none":
-            sorted_values = normalize_values(sorted_values, normalize)
-        
-        # Create chart with individual bar colors
-        plt.clear_data()
-        
-        # Prepare colors for each bar in order
-        bar_colors = []
-        for model in sorted_models:
-            creator = get_creator_from_model_name(model.name)
-            color = CREATOR_COLORS.get(creator, 'white')
-            bar_colors.append(color)
-        
-        # Create horizontal ASCII bar chart
-        generate_horizontal_bar_chart(
-            models=sorted_models,
-            values=sorted_values,
-            metric=metric,
-            normalize=normalize
-        )
-        
-        # Show creator legend
-        print_creator_legend(sorted_models)
+    # Create list of (model, value) pairs and filter out None/0 values
+    model_value_pairs = []
+    for model in models:
+        value = model.get_benchmark_value(metric)
+        if value is not None and value > 0:
+            model_value_pairs.append((model, value))
     
-    else:
-        # Multiple metrics - show separate charts for each
-        console.print(f"[bold blue]Comparing {len(columns)} metrics across models[/bold blue]\n")
-        
-        # For table, find models that have at least one non-zero value across all metrics
-        models_with_data = []
-        for model in models:
-            has_data = False
-            for metric in columns:
-                value = model.get_benchmark_value(metric)
-                if value is not None and value > 0:
-                    has_data = True
-                    break
-            if has_data:
-                models_with_data.append(model)
-        
-        if not models_with_data:
-            print_error(f"No models found with valid data for any of the metrics: {', '.join(columns)}")
-            return
-        
-        # Sort models by first metric (descending)
-        first_metric = columns[0]
-        model_value_pairs = []
-        for model in models_with_data:
-            value = model.get_benchmark_value(first_metric)
-            model_value_pairs.append((model, value if value is not None else 0))
-        
-        model_value_pairs.sort(key=lambda x: x[1], reverse=True)
-        sorted_models_for_table = [pair[0] for pair in model_value_pairs]
-        
-        # Show individual charts for each metric
-        for i, metric in enumerate(columns):
-            # Create model-value pairs for this metric and filter
-            metric_model_value_pairs = []
-            for model in models:
-                value = model.get_benchmark_value(metric)
-                if value is not None and value > 0:
-                    metric_model_value_pairs.append((model, value))
-            
-            if not metric_model_value_pairs:
-                console.print(f"[yellow]No data available for metric '{metric}'[/yellow]\n")
-                continue
-            
-            # Sort by this metric's values
-            metric_model_value_pairs.sort(key=lambda x: x[1], reverse=True)
-            metric_models = [pair[0] for pair in metric_model_value_pairs]
-            metric_values = [pair[1] for pair in metric_model_value_pairs]
-            metric_names = [clean_model_name(m.name) for m in metric_models]
-            
-            # Normalize if requested
-            if normalize != "none":
-                metric_values = normalize_values(metric_values, normalize)
-            
-            # Create chart with individual bar colors
-            plt.clear_data()
-            
-            # Prepare colors for each bar in order
-            metric_bar_colors = []
-            for model in metric_models:
-                creator = get_creator_from_model_name(model.name)
-                color = CREATOR_COLORS.get(creator, 'white')
-                metric_bar_colors.append(color)
-            
-            # Create horizontal ASCII bar chart for this metric
-            generate_horizontal_bar_chart(
-                models=metric_models,
-                values=metric_values,
-                metric=metric,
-                normalize=normalize
-            )
-            
-            if i < len(columns) - 1:
-                console.print()  # Add spacing between charts
-        
-        # Show creator legend (using all models that had data)
-        all_models_with_data = []
-        for model in models:
-            has_data = False
-            for metric in columns:
-                value = model.get_benchmark_value(metric)
-                if value is not None and value > 0:
-                    has_data = True
-                    break
-            if has_data:
-                all_models_with_data.append(model)
-        
-        print_creator_legend(all_models_with_data)
-        
-        # Show combined data table (sorted by first metric)
-        all_values = []
-        for metric in columns:
-            values = []
-            for model in sorted_models_for_table:
-                value = model.get_benchmark_value(metric)
-                # Only include models with actual data for this metric
-                if value is not None and value > 0:
-                    values.append(value)
-                else:
-                    values.append(None)  # Use None for missing data
-            
-            if normalize != "none":
-                # Only normalize non-None values
-                non_none_values = [v for v in values if v is not None]
-                if non_none_values:
-                    normalized = normalize_values(non_none_values, normalize)
-                    # Map back to original positions
-                    norm_iter = iter(normalized)
-                    values = [next(norm_iter) if v is not None else None for v in values]
-            
-            all_values.append(values)
+    # Sort by value in descending order
+    model_value_pairs.sort(key=lambda x: x[1], reverse=True)
+    
+    if not model_value_pairs:
+        print_error(f"No models found with valid data for metric '{metric}'")
+        return
+    
+    # Extract sorted models and values
+    sorted_models = [pair[0] for pair in model_value_pairs]
+    sorted_values = [pair[1] for pair in model_value_pairs]
+    
+    # Normalize if requested
+    if normalize != "none":
+        sorted_values = normalize_values(sorted_values, normalize)
+    
+    # Create horizontal ASCII bar chart
+    generate_horizontal_bar_chart(
+        models=sorted_models,
+        values=sorted_values,
+        metric=metric,
+        normalize=normalize
+    )
+    
+    # Show creator legend
+    print_creator_legend(sorted_models)
 
 
 def generate_pareto_chart(

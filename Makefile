@@ -124,7 +124,7 @@ demo-list:
 
 demo-charts:
 	@echo "🎬 Demo: Generating charts..."
-	evalarena charts bar --type small --top 3 --columns mmlu,humaneval
+	evalarena charts bar mmlu --type small --top 3
 
 # Release workflow
 pre-release: check-all version

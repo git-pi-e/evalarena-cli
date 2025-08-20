@@ -90,7 +90,7 @@ evalarena compare "gpt-4o" "claude-3.5-sonnet"
 evalarena chat "Explain quantum computing" --models "gpt-4o,claude-3.5-sonnet"
 
 # Generate bar chart
-evalarena charts bar --models "gpt-4o,claude-3.5-sonnet" --columns mmlu,humaneval
+evalarena charts bar mmlu --models "gpt-4o,claude-3.5-sonnet"
 
 # Generate Pareto frontier chart
 evalarena charts pareto mmlu input_price_per_1M_tokens_USD --table
@@ -220,11 +220,13 @@ evalarena chat --list
 #### Bar Charts
 
 ```bash
-evalarena charts bar [OPTIONS]
+evalarena charts bar <metric> [OPTIONS]
+
+Arguments:
+  <metric>                       Benchmark metric to chart (e.g., mmlu, humaneval)
 
 Options:
   --models TEXT                   Comma-separated model names
-  --columns TEXT                  Benchmarks to chart (default: mmlu)
   --type [all|small|vlm|chat]     Model type (if --models not specified)
   --normalize [none|zscore|minmax] Normalization method
   --top INTEGER                   Show only top N models
@@ -232,9 +234,9 @@ Options:
   --height INTEGER                Chart height
 
 # Examples
-evalarena charts bar --models "gpt-4o,claude-3.5-sonnet,gemini-pro" --columns mmlu
-evalarena charts bar --type small --top 5 --columns mmlu,humaneval
-evalarena charts bar --columns "mmlu,mmlu_pro,humaneval" --normalize zscore
+evalarena charts bar mmlu --models "gpt-4o,claude-3.5-sonnet,gemini-pro"
+evalarena charts bar mmlu --type small --top 5
+evalarena charts bar mmlu --normalize zscore
 ```
 
 #### Pareto Frontier Charts
@@ -391,12 +393,11 @@ evalarena models search "llama" --type small
 ### Generate comparison charts
 
 ```bash
-# Compare top 3 models across multiple benchmarks
-evalarena charts bar --top 3 --columns "mmlu,humaneval,math" --normalize zscore
+# Compare top 3 models on a benchmark
+evalarena charts bar mmlu --top 3 --normalize zscore
 
-# Compare specific models
-evalarena charts bar --models "gpt-4o,claude-3.5-sonnet,gemini-2.0-flash" \
-  --columns "mmlu,mmlu_pro,humaneval,math"
+# Compare specific models on a benchmark
+evalarena charts bar mmlu --models "gpt-4o,claude-3.5-sonnet,gemini-2.0-flash"
 ```
 
 ### Interactive multi-model chat
