@@ -23,6 +23,46 @@ ENDPOINT_MAP = {
 }
 
 
+def _apply_client_side_pagination(models: List, page: Optional[int], limit: Optional[int]) -> List:
+    """Apply client-side pagination and limiting to a list of models."""
+    if page is not None or limit is not None:
+        if limit is not None:
+            if page is not None:
+                start_idx = (page - 1) * limit
+                end_idx = start_idx + limit
+                return models[start_idx:end_idx]
+            else:
+                return models[:limit]
+    return models
+
+
+def _convert_chat_models_to_full_models(chat_models: List[ChatModel]) -> List[FullModel]:
+    """Convert chat model objects to FullModel objects."""
+    return [
+        FullModel(
+            name=cm.name,
+            id=cm.id,
+            creator=cm.creator,  # Fixed: use creator instead of provider
+            description=cm.description,
+            categories=["chat"]
+        )
+        for cm in chat_models
+    ]
+
+
+def _parse_api_response_to_models(response_data) -> List[FullModel]:
+    """Parse API response data into FullModel objects."""
+    if isinstance(response_data, list):
+        # Direct list of models
+        return [FullModel(**item) for item in response_data]
+    elif isinstance(response_data, dict) and "data" in response_data:
+        # Paginated response
+        return [FullModel(**item) for item in response_data["data"]]
+    else:
+        # Raw list response
+        return [FullModel(**item) for item in response_data]
+
+
 async def fetch_models(
     model_type: str = ModelType.ALL,
     sort_by: str = "name",
@@ -57,60 +97,19 @@ async def fetch_models(
     }
     # Note: page and limit are handled client-side since backend doesn't support them
     
-    # Handle chat models differently (they have a different structure)
-    if model_type == ModelType.CHAT:
-        response_data = await cached_get(endpoint, params=params, bypass_cache=bypass_cache)
-        # Chat models have a different structure, convert to our format
-        chat_models = [ChatModel(**item) for item in response_data]
-        models = [
-            FullModel(
-                name=cm.name,
-                id=cm.id,
-                creator=cm.creator,  # Fixed: use creator instead of provider
-                description=cm.description,
-                categories=["chat"]
-            )
-            for cm in chat_models
-        ]
-        
-        # Apply client-side pagination and limiting for chat models too
-        if page is not None or limit is not None:
-            if limit is not None:
-                if page is not None:
-                    start_idx = (page - 1) * limit
-                    end_idx = start_idx + limit
-                    models = models[start_idx:end_idx]
-                else:
-                    models = models[:limit]
-        
-        return models
-    
-    # For other model types
     response_data = await cached_get(endpoint, params=params, bypass_cache=bypass_cache)
     
-    if isinstance(response_data, list):
-        # Direct list of models
-        models = [FullModel(**item) for item in response_data]
-    elif isinstance(response_data, dict) and "data" in response_data:
-        # Paginated response
-        models = [FullModel(**item) for item in response_data["data"]]
+    # Handle chat models differently (they have a different structure)
+    if model_type == ModelType.CHAT:
+        # Chat models have a different structure, convert to our format
+        chat_models = [ChatModel(**item) for item in response_data]
+        models = _convert_chat_models_to_full_models(chat_models)
     else:
-        # Raw list response
-        models = [FullModel(**item) for item in response_data]
+        # For other model types
+        models = _parse_api_response_to_models(response_data)
     
     # Apply client-side pagination and limiting
-    if page is not None or limit is not None:
-        # Calculate start and end indices
-        if limit is not None:
-            if page is not None:
-                start_idx = (page - 1) * limit
-                end_idx = start_idx + limit
-                models = models[start_idx:end_idx]
-            else:
-                # Just limit without pagination
-                models = models[:limit]
-    
-    return models
+    return _apply_client_side_pagination(models, page, limit)
 
 
 async def fetch_model_by_id(model_id: str, model_type: str = ModelType.ALL) -> Optional[FullModel]:

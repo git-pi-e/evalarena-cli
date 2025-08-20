@@ -19,6 +19,107 @@ from .completions import (
 console = Console()
 
 
+def _validate_model_type(model_type: str) -> None:
+    """Validate that the model type is valid."""
+    valid_types = [ModelType.ALL, ModelType.SMALL, ModelType.VLM, ModelType.CHAT]
+    if model_type not in valid_types:
+        print_error(f"Invalid model type '{model_type}'. Must be one of: {', '.join(valid_types)}")
+        raise typer.Exit(1)
+
+
+def _validate_sort_order(order: str) -> None:
+    """Validate that the sort order is valid."""
+    if order not in ["asc", "desc"]:
+        print_error("Order must be 'asc' or 'desc'")
+        raise typer.Exit(1)
+
+
+def _parse_columns_from_options(columns: Optional[str], evals: Optional[str], 
+                               model_type: str, config) -> List[str]:
+    """Parse column list from command options."""
+    if columns:
+        return [col.strip() for col in columns.split(",")]
+    elif evals:
+        return _get_benchmark_columns(evals, model_type)
+    else:
+        return DEFAULT_COLUMNS.get(model_type, config.default_columns)
+
+
+def _get_benchmark_columns(evals: str, model_type: str) -> List[str]:
+    """Get benchmark columns based on evals category."""
+    benchmark_cols = BENCHMARK_COLUMNS.get(model_type, {})
+    if evals == "all":
+        return ["name", "creator"] + benchmark_cols.get("all", [])
+    elif evals in benchmark_cols:
+        return ["name", "creator"] + benchmark_cols[evals]
+    else:
+        valid_categories = list(benchmark_cols.keys())
+        print_error(f"Invalid evals category '{evals}'. Valid categories for {model_type} models: {', '.join(valid_categories)}")
+        raise typer.Exit(1)
+
+
+def _get_available_keys_from_models(models: List) -> set:
+    """Extract all available field keys from a list of models."""
+    available_keys = set()
+    for model in models:
+        available_keys.update(model.get_all_benchmarks().keys())
+        available_keys.update(["name", "creator", "active_params_in_billion", "release_date", "description"])
+        
+        # Add pricing and token fields
+        pricing = model.get_pricing_info()
+        for key, value in pricing.items():
+            if value is not None:
+                available_keys.add(key)
+        
+        token_limits = model.get_token_limits()
+        for key, value in token_limits.items():
+            if value is not None:
+                available_keys.add(key)
+    
+    return available_keys
+
+
+def _validate_columns_against_available(column_list: List[str], available_keys: set) -> List[str]:
+    """Validate column list against available keys and return corrected list."""
+    validated_columns = []
+    for col in column_list:
+        try:
+            if col in available_keys or col in ["name", "creator"]:
+                validated_columns.append(col)
+            else:
+                # Try to validate/correct the column name
+                corrected = validate_benchmark_key(col, list(available_keys))
+                validated_columns.append(corrected)
+        except ValueError as e:
+            print_error(str(e))
+            raise typer.Exit(1)
+    
+    return validated_columns
+
+
+def _fetch_models_with_status(model_type: str, sort_by: str, order: str, 
+                             page: Optional[int], limit: Optional[int], 
+                             no_cache: bool):
+    """Fetch models with a loading status message."""
+    with console.status(f"Fetching {model_type} models..."):
+        return asyncio.run(fetch_models(
+            model_type=model_type,
+            sort_by=sort_by,
+            order=order,
+            page=page,
+            limit=limit,
+            bypass_cache=no_cache
+        ))
+
+
+def _create_output_title(model_type: str, limit: Optional[int]) -> str:
+    """Create a descriptive title for the output."""
+    title = f"{model_type.title()} Models"
+    if limit:
+        title += f" (limit: {limit})"
+    return title
+
+
 def setup_models_commands(app: typer.Typer) -> None:
     """Setup models command handlers."""
     
@@ -76,51 +177,23 @@ def setup_models_commands(app: typer.Typer) -> None:
     ) -> None:
         """List models with filtering and sorting options."""
         
-        # Validate model type
-        valid_types = [ModelType.ALL, ModelType.SMALL, ModelType.VLM, ModelType.CHAT]
-        if model_type not in valid_types:
-            print_error(f"Invalid model type '{model_type}'. Must be one of: {', '.join(valid_types)}")
-            raise typer.Exit(1)
-        
-        # Validate order
-        if order not in ["asc", "desc"]:
-            print_error("Order must be 'asc' or 'desc'")
-            raise typer.Exit(1)
+        # Validate inputs
+        _validate_model_type(model_type)
+        _validate_sort_order(order)
         
         config = get_config()
         
         # Determine output format
         output_format = format_type or config.output_format
         
-        # Parse columns - handle --evals flag and --columns
-        if columns:
-            column_list = [col.strip() for col in columns.split(",")]
-        elif evals:
-            # Use benchmark columns based on --evals category
-            benchmark_cols = BENCHMARK_COLUMNS.get(model_type, {})
-            if evals == "all":
-                column_list = ["name", "creator"] + benchmark_cols.get("all", [])
-            elif evals in benchmark_cols:
-                column_list = ["name", "creator"] + benchmark_cols[evals]
-            else:
-                valid_categories = list(benchmark_cols.keys())
-                print_error(f"Invalid evals category '{evals}'. Valid categories for {model_type} models: {', '.join(valid_categories)}")
-                raise typer.Exit(1)
-        else:
-            # Default to model info columns
-            column_list = DEFAULT_COLUMNS.get(model_type, config.default_columns)
+        # Parse columns
+        column_list = _parse_columns_from_options(columns, evals, model_type, config)
         
         try:
             # Fetch models
-            with console.status(f"Fetching {model_type} models..."):
-                models = asyncio.run(fetch_models(
-                    model_type=model_type,
-                    sort_by=sort_by,
-                    order=order,
-                    page=page,
-                    limit=limit,
-                    bypass_cache=no_cache
-                ))
+            models = _fetch_models_with_status(
+                model_type, sort_by, order, page, limit, no_cache
+            )
             
             if not models:
                 print_info("No models found.")
@@ -128,50 +201,12 @@ def setup_models_commands(app: typer.Typer) -> None:
             
             # Validate columns against available data (skip validation for --evals since they're pre-validated)
             if output_format == "table" and not evals:
-                # Get available benchmark keys from the fetched models
-                available_keys = set()
-                for model in models:
-                    available_keys.update(model.get_all_benchmarks().keys())
-                    available_keys.update(["name", "creator", "active_params_in_billion", "release_date", "description"])
-                    
-                    # Add pricing and token fields
-                    pricing = model.get_pricing_info()
-                    for key, value in pricing.items():
-                        if value is not None:
-                            available_keys.add(key)
-                    
-                    token_limits = model.get_token_limits()
-                    for key, value in token_limits.items():
-                        if value is not None:
-                            available_keys.add(key)
-                
-                # Validate and filter columns (only when not using --evals)
-                validated_columns = []
-                for col in column_list:
-                    try:
-                        if col in available_keys or col in ["name", "creator"]:
-                            validated_columns.append(col)
-                        else:
-                            # Try to validate/correct the column name
-                            corrected = validate_benchmark_key(col, list(available_keys))
-                            validated_columns.append(corrected)
-                    except ValueError as e:
-                        print_error(str(e))
-                        raise typer.Exit(1)
-                
-                column_list = validated_columns
+                available_keys = _get_available_keys_from_models(models)
+                column_list = _validate_columns_against_available(column_list, available_keys)
             
             # Print results
-            title = f"{model_type.title()} Models"
-            if limit:
-                title += f" (limit: {limit})"
-            
-            print_output(
-                models,
-                output_format,
-                columns=column_list,
-                title=title
-            )
+            title = _create_output_title(model_type, limit)
+            print_output(models, output_format, columns=column_list, title=title)
             
         except EvalArenaHTTPError as e:
             print_error(str(e))
@@ -191,10 +226,7 @@ def setup_models_commands(app: typer.Typer) -> None:
     ) -> None:
         """List available columns for the specified model type."""
         
-        valid_types = [ModelType.ALL, ModelType.SMALL, ModelType.VLM, ModelType.CHAT]
-        if model_type not in valid_types:
-            print_error(f"Invalid model type '{model_type}'. Must be one of: {', '.join(valid_types)}")
-            raise typer.Exit(1)
+        _validate_model_type(model_type)
         
         try:
             with console.status(f"Analyzing {model_type} models..."):
@@ -271,10 +303,7 @@ def setup_models_commands(app: typer.Typer) -> None:
         
         from .data_access import search_models_by_name
         
-        valid_types = [ModelType.ALL, ModelType.SMALL, ModelType.VLM, ModelType.CHAT]
-        if model_type not in valid_types:
-            print_error(f"Invalid model type '{model_type}'. Must be one of: {', '.join(valid_types)}")
-            raise typer.Exit(1)
+        _validate_model_type(model_type)
         
         config = get_config()
         

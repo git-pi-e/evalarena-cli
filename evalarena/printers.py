@@ -96,6 +96,98 @@ def get_column_label(column: str) -> str:
     return BENCHMARK_LABELS.get(column, column.replace("_", " ").title())
 
 
+def _get_model_value(model: FullModel, column: str) -> Any:
+    """Get a value from a model for a given column."""
+    if column == "description":
+        # Special handling for description to extract readable text
+        desc_obj = getattr(model, column, None)
+        if desc_obj and hasattr(desc_obj, 'additional_details'):
+            # It's a ModelDescription object
+            value = desc_obj.additional_details
+            if not value or value.lower() in ["none", "null"]:
+                # Try other fields but skip None values
+                for field_name in ["architecture", "pre_training", "post_training"]:
+                    candidate = getattr(desc_obj, field_name, None)
+                    if candidate and candidate.lower() not in ["none", "null"]:
+                        return candidate
+                return ""
+            return value
+        elif isinstance(desc_obj, dict):
+            # Fallback for dict format
+            value = desc_obj.get("additional_details", "")
+            if not value or value.lower() in ["none", "null"]:
+                for field in ["architecture", "pre_training", "post_training"]:
+                    candidate = desc_obj.get(field, "")
+                    if candidate and candidate.lower() not in ["none", "null"]:
+                        return candidate
+                return ""
+            return value
+        else:
+            return ""
+    elif hasattr(model, column):
+        return getattr(model, column)
+    elif column in model.get_all_benchmarks():
+        return model.get_benchmark_value(column)
+    elif column == "input_price_per_1M_tokens_USD":
+        return model.get_pricing_info().get("input_price_per_1M_tokens_USD")
+    elif column == "output_price_per_1M_tokens_USD":
+        return model.get_pricing_info().get("output_price_per_1M_tokens_USD")
+    elif column == "max_input_tokens":
+        return model.get_token_limits().get("max_input_tokens")
+    elif column == "max_output_tokens":
+        return model.get_token_limits().get("max_output_tokens")
+    else:
+        return None
+
+
+def _find_max_values_for_columns(models: List[FullModel], columns: List[str]) -> Dict[str, float]:
+    """Find maximum values for each numeric column across all models."""
+    max_values = {}
+    for column in columns:
+        if column in ["name", "creator"]:
+            continue
+        
+        values = []
+        for model in models:
+            value = _get_model_value(model, column)
+            if isinstance(value, (int, float)) and value is not None:
+                values.append(value)
+        
+        if values:
+            max_values[column] = max(values)
+    
+    return max_values
+
+
+def _create_diff_cell(val1: Any, val2: Any, diff_mode: str) -> Text:
+    """Create a formatted diff cell for comparison tables."""
+    if val1 is not None and val2 is not None:
+        if diff_mode == "absolute":
+            diff = val2 - val1
+            diff_text = f"{diff:+.2f}"
+            # Color the diff based on positive/negative
+            if diff > 0:
+                return Text(diff_text, style="green")
+            elif diff < 0:
+                return Text(diff_text, style="red")
+            else:
+                return Text(diff_text, style="yellow")
+        elif diff_mode == "percent":
+            if val1 != 0:
+                diff_pct = ((val2 - val1) / val1) * 100
+                diff_text = f"{diff_pct:+.1f}%"
+                # Color the diff based on positive/negative
+                if diff_pct > 0:
+                    return Text(diff_text, style="green")
+                elif diff_pct < 0:
+                    return Text(diff_text, style="red")
+                else:
+                    return Text(diff_text, style="yellow")
+            else:
+                return Text("∞", style="yellow")
+    return Text("—", style="dim")
+
+
 def format_cell_value(value: Any, column: str, highlight_max: bool = False, is_max: bool = False) -> Text:
     """Format a cell value for table display."""
     if value is None:
@@ -194,72 +286,14 @@ def print_models_table(
     # Calculate max values for highlighting
     max_values = {}
     if highlight_max:
-        for column in columns:
-            if column in ["name", "creator"]:
-                continue
-            
-            values = []
-            for model in models:
-                if hasattr(model, column):
-                    value = getattr(model, column)
-                elif column in model.get_all_benchmarks():
-                    value = model.get_benchmark_value(column)
-                else:
-                    value = None
-                
-                if isinstance(value, (int, float)) and value is not None:
-                    values.append(value)
-            
-            if values:
-                max_values[column] = max(values)
+        max_values = _find_max_values_for_columns(models, columns)
     
     # Add rows
     for model in models:
         row = []
         for column in columns:
             # Get value
-            if column == "description":
-                # Special handling for description to extract readable text
-                desc_obj = getattr(model, column, None)
-                if desc_obj and hasattr(desc_obj, 'additional_details'):
-                    # It's a ModelDescription object
-                    value = desc_obj.additional_details
-                    if not value or value.lower() in ["none", "null"]:
-                        # Try other fields but skip None values
-                        for field_name in ["architecture", "pre_training", "post_training"]:
-                            candidate = getattr(desc_obj, field_name, None)
-                            if candidate and candidate.lower() not in ["none", "null"]:
-                                value = candidate
-                                break
-                        else:
-                            value = ""
-                elif isinstance(desc_obj, dict):
-                    # Fallback for dict format
-                    value = desc_obj.get("additional_details", "")
-                    if not value or value.lower() in ["none", "null"]:
-                        for field in ["architecture", "pre_training", "post_training"]:
-                            candidate = desc_obj.get(field, "")
-                            if candidate and candidate.lower() not in ["none", "null"]:
-                                value = candidate
-                                break
-                        else:
-                            value = ""
-                else:
-                    value = ""
-            elif hasattr(model, column):
-                value = getattr(model, column)
-            elif column in model.get_all_benchmarks():
-                value = model.get_benchmark_value(column)
-            elif column == "input_price_per_1M_tokens_USD":
-                value = model.get_pricing_info().get("input_price_per_1M_tokens_USD")
-            elif column == "output_price_per_1M_tokens_USD":
-                value = model.get_pricing_info().get("output_price_per_1M_tokens_USD")
-            elif column == "max_input_tokens":
-                value = model.get_token_limits().get("max_input_tokens")
-            elif column == "max_output_tokens":
-                value = model.get_token_limits().get("max_output_tokens")
-            else:
-                value = None
+            value = _get_model_value(model, column)
             
             # Special formatting for name
             if column == "name":
@@ -425,32 +459,8 @@ def print_comparison_table(
         # Add diff if requested
         if diff_mode != "none" and len(models) == 2:
             val1, val2 = values[0], values[1]
-            if val1 is not None and val2 is not None:
-                if diff_mode == "absolute":
-                    diff = val2 - val1
-                    diff_text = f"{diff:+.2f}"
-                    # Color the diff based on positive/negative
-                    if diff > 0:
-                        row.append(Text(diff_text, style="green"))
-                    elif diff < 0:
-                        row.append(Text(diff_text, style="red"))
-                    else:
-                        row.append(Text(diff_text, style="yellow"))
-                elif diff_mode == "percent":
-                    if val1 != 0:
-                        diff_pct = ((val2 - val1) / val1) * 100
-                        diff_text = f"{diff_pct:+.1f}%"
-                        # Color the diff based on positive/negative
-                        if diff_pct > 0:
-                            row.append(Text(diff_text, style="green"))
-                        elif diff_pct < 0:
-                            row.append(Text(diff_text, style="red"))
-                        else:
-                            row.append(Text(diff_text, style="yellow"))
-                    else:
-                        row.append(Text("∞", style="yellow"))
-            else:
-                row.append(Text("—", style="dim"))
+            diff_cell = _create_diff_cell(val1, val2, diff_mode)
+            row.append(diff_cell)
         
         table.add_row(*row)
     
