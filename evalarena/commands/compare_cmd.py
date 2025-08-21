@@ -12,17 +12,18 @@ from ..core.http import EvalArenaHTTPError
 from ..data.model_schemas import FullModel
 from ..utils.printers import print_comparison_table, print_output, print_error, print_info
 from ..utils.utils import resolve_model_names
-from ..utils.completions import complete_model_type, complete_output_format, complete_diff_mode
+from ..utils.completions import complete_model_type, complete_output_format, complete_diff_mode, complete_model_names
 
 console = Console()
 
 
 def compare_models(
-        model_a: str = typer.Argument(help="First model to compare"),
-        model_b: str = typer.Argument(help="Second model to compare"),
+        model_a: str = typer.Argument(help="First model to compare", autocompletion=complete_model_names),
+        model_b: str = typer.Argument(help="Second model to compare", autocompletion=complete_model_names),
         additional_models: Optional[List[str]] = typer.Argument(
             None,
-            help="Additional models to compare"
+            help="Additional models to compare",
+            autocompletion=complete_model_names
         ),
         model_type: str = typer.Option(
             "all",

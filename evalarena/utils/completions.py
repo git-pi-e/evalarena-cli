@@ -137,3 +137,76 @@ def complete_chat_models(ctx, incomplete: str) -> List[str]:
                 break
 
     return suggestions
+
+
+def complete_model_names(ctx, incomplete: str) -> List[str]:
+    """Complete model names with type filtering and partial matching.
+    
+    Supports filtering by model type specified with --type option and
+    partial string matching for model names.
+    """
+    
+    def _get_model_names(model_type: str = "all") -> List[str]:
+        """Fetch model names from the API."""
+        try:
+            import asyncio
+            from ..core.data_access import fetch_models
+            
+            models = asyncio.run(fetch_models(
+                model_type=model_type,
+                sort_by="name",
+                order="asc",
+                bypass_cache=False
+            ))
+            return [model.name for model in models]
+        except Exception:
+            # Fallback list of common models
+            return [
+                "Claude 3.5 Haiku",
+                "Claude 3.5 Sonnet (new)",
+                "Claude 3.7 Sonnet",
+                "GPT-4o",
+                "GPT-4o mini",
+                "Gemini 1.5 Pro",
+                "Gemini 1.5 Flash",
+                "Llama 3.1 405B",
+                "Llama 3.1 70B",
+                "DeepSeek-V3",
+                "DeepSeek-R1"
+            ]
+    
+    # Extract model type from command line context
+    model_type = "all"  # default
+    if ctx and hasattr(ctx, 'params'):
+        # Try to get the type parameter from the context
+        if 'type' in ctx.params:
+            model_type = ctx.params['type']
+    else:
+        # Fallback: parse from environment variable
+        complete_args = os.environ.get('_TYPER_COMPLETE_ARGS', '')
+        if '--type' in complete_args:
+            parts = complete_args.split('--type')
+            if len(parts) > 1:
+                type_part = parts[1].strip().split()[0] if parts[1].strip() else ""
+                if type_part in [ModelType.ALL, ModelType.SMALL, ModelType.VLM, ModelType.CHAT]:
+                    model_type = type_part
+    
+    # Get model names for the specified type
+    model_names = _get_model_names(model_type)
+    
+    # If no incomplete text, return all models (no limit for full experience)
+    if not incomplete:
+        return model_names  # Show all available models
+    
+    # Perform partial matching (case-insensitive)
+    needle = incomplete.lower()
+    suggestions = []
+    
+    for model_name in model_names:
+        if needle in model_name.lower():
+            suggestions.append(model_name)
+            # Generous limit for partial matching
+            if len(suggestions) >= 50:
+                break
+    
+    return suggestions
