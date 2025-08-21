@@ -99,31 +99,17 @@ def get_column_label(column: str) -> str:
 def _get_model_value(model: FullModel, column: str) -> Any:
     """Get a value from a model for a given column."""
     if column == "description":
-        # Special handling for description to extract readable text
+        # Special handling for description to return the complete ModelDescription object
         desc_obj = getattr(model, column, None)
         if desc_obj and hasattr(desc_obj, 'additional_details'):
-            # It's a ModelDescription object
-            value = desc_obj.additional_details
-            if not value or value.lower() in ["none", "null"]:
-                # Try other fields but skip None values
-                for field_name in ["architecture", "pre_training", "post_training"]:
-                    candidate = getattr(desc_obj, field_name, None)
-                    if candidate and candidate.lower() not in ["none", "null"]:
-                        return candidate
-                return ""
-            return value
+            # It's a ModelDescription object - return the complete object for rich formatting
+            return desc_obj
         elif isinstance(desc_obj, dict):
-            # Fallback for dict format
-            value = desc_obj.get("additional_details", "")
-            if not value or value.lower() in ["none", "null"]:
-                for field in ["architecture", "pre_training", "post_training"]:
-                    candidate = desc_obj.get(field, "")
-                    if candidate and candidate.lower() not in ["none", "null"]:
-                        return candidate
-                return ""
-            return value
+            # Convert dict to ModelDescription object for consistent handling
+            from ..data.model_schemas import ModelDescription
+            return ModelDescription(**desc_obj)
         else:
-            return ""
+            return desc_obj if desc_obj else ""
     elif hasattr(model, column):
         return getattr(model, column)
     elif column in model.get_all_benchmarks():
@@ -157,6 +143,71 @@ def _find_max_values_for_columns(models: List[FullModel], columns: List[str]) ->
             max_values[column] = max(values)
     
     return max_values
+
+
+def _format_structured_description(desc_obj) -> Text:
+    """Format a ModelDescription object with color-coded fields."""
+    from ..data.model_schemas import ModelDescription
+    
+    if not desc_obj or not isinstance(desc_obj, ModelDescription):
+        return Text("—", style="dim")
+    
+    # Define color scheme from lighter to darker blue
+    field_colors = {
+        "architecture": "bright_cyan",
+        "attention_embedding": "bright_blue", 
+        "pre_training": "blue3",
+        "post_training": "blue1",
+        "additional_details": "navy_blue"
+    }
+    
+    # Field order for display
+    field_order = ["architecture", "attention_embedding", "pre_training", "post_training", "additional_details"]
+    
+    parts = []
+    for field_name in field_order:
+        field_value = getattr(desc_obj, field_name, None)
+        if field_value and field_value.lower() not in ["none", "null", ""]:
+            # Only show the field value with color coding, no field names
+            field_text = Text(field_value, style=field_colors.get(field_name, "white"))
+            parts.append(field_text)
+    
+    if not parts:
+        return Text("—", style="dim")
+    
+    # Combine all parts with line breaks
+    result = Text()
+    for i, part in enumerate(parts):
+        if i > 0:
+            result.append("\n")
+        result.append(part)
+    
+    return result
+
+
+def _print_description_legend() -> None:
+    """Print color legend for description fields."""
+    field_colors = {
+        "Architecture": "bright_cyan",
+        "Attention/Embedding": "bright_blue", 
+        "Pre-training": "blue3",
+        "Post-training": "blue1",
+        "Additional Details": "navy_blue"
+    }
+    
+    console.print("[dim]Description Color Legend:[/dim]")
+    legend_parts = []
+    for field_name, color in field_colors.items():
+        legend_parts.append(Text(field_name, style=color))
+    
+    # Display legend in a compact format
+    legend_text = Text("• ")
+    for i, part in enumerate(legend_parts):
+        if i > 0:
+            legend_text.append("  • ")
+        legend_text.append(part)
+    
+    console.print(legend_text)
 
 
 def _create_diff_cell(val1: Any, val2: Any, diff_mode: str) -> Text:
@@ -221,15 +272,18 @@ def format_cell_value(value: Any, column: str, highlight_max: bool = False, is_m
         else:
             formatted = str(value)[:10]
     elif column == "description":
-        # Clean up description - it should already be processed but ensure it's clean
-        if isinstance(value, dict):
-            # Fallback if dict still passed here
-            desc = value.get("additional_details", "")
-            if not desc or desc.lower() in ["none", "null"]:
-                desc = ""
-            formatted = truncate_string(desc or "—", 40)
+        # Use structured description formatting with color coding
+        from ..data.model_schemas import ModelDescription
+        
+        if isinstance(value, ModelDescription):
+            # Return the formatted rich text directly
+            return _format_structured_description(value)
+        elif isinstance(value, dict):
+            # Convert dict to ModelDescription and format
+            desc_obj = ModelDescription(**value)
+            return _format_structured_description(desc_obj)
         else:
-            # Remove any remaining None/null text
+            # Fallback for string descriptions
             desc = str(value) if value else ""
             if desc.lower() in ["none", "null", ""] or "architecture=None" in desc:
                 desc = "—"
@@ -273,9 +327,17 @@ def print_models_table(
     for column in columns:
         label = get_column_label(column)
         if column == "name":
-            table.add_column(label, style="cyan", no_wrap=True, min_width=20)
+            table.add_column(label, style="cyan", no_wrap=False, min_width=20, max_width=35)
         elif column == "creator":
             table.add_column(label, style="blue", no_wrap=True)
+        elif column == "description":
+            # Dynamic width based on terminal size for description column
+            terminal_width = console.size.width
+            # Calculate available width after accounting for other columns and table formatting
+            base_width = terminal_width - 80  # Reserve space for other columns and borders
+            min_desc_width = max(60, base_width // 3)  # At least 60 chars, or 1/3 of available space
+            max_desc_width = max(min_desc_width, base_width)  # Use available space
+            table.add_column(label, no_wrap=False, min_width=min_desc_width, max_width=max_desc_width)
         elif "price" in column.lower():
             table.add_column(label, justify="right", style="green")
         elif isinstance(getattr(models[0], column, None), (int, float)) or column in BENCHMARK_LABELS:
@@ -295,9 +357,7 @@ def print_models_table(
             # Get value
             value = _get_model_value(model, column)
             
-            # Special formatting for name
-            if column == "name":
-                value = truncate_string(value, 25)
+            # No special truncation for name since we allow wrapping now
             
             # Check if this is the maximum value
             is_max = column in max_values and isinstance(value, (int, float)) and value == max_values[column]
@@ -306,6 +366,11 @@ def print_models_table(
             row.append(cell)
         
         table.add_row(*row)
+    
+    # Print color legend if description column is present
+    if "description" in columns:
+        _print_description_legend()
+        console.print()  # Add spacing before table
     
     console.print(table)
     console.print(f"\n[dim]Showing {len(models)} models[/dim]")
