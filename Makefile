@@ -132,3 +132,12 @@ pre-release: check-all version
 
 release: pre-release build publish
 	@echo "🚀 Released to PyPI"
+
+build:
+	go build -o bin/evalarena ./src/cmd/evalarena
+
+run:
+	go run ./src/cmd/evalarena
+
+test:
+	go test ./src/...
